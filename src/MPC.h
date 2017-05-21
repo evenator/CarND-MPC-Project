@@ -8,13 +8,18 @@ using namespace std;
 
 class MPC {
  public:
-  MPC();
+  MPC(size_t n, double v);
 
   virtual ~MPC();
 
   // Solve the model given an initial state and polynomial coefficients.
   // Return the first actuatotions.
   vector<double> Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs);
+  const size_t N;
+
+ private:
+  /// Desired velocity to maintain
+  double velocity;
 };
 
 #endif /* MPC_H */
