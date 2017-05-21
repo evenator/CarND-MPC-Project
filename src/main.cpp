@@ -65,6 +65,20 @@ Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
   return result;
 }
 
+Eigen::VectorXd pointToVehicleFrame(Eigen::VectorXd const& world_pt,
+                                    Eigen::VectorXd const& vehicle_pos,
+                                    double psi)  {
+  Eigen::VectorXd trans = world_pt - vehicle_pos;
+  // TODO: Implement using Eigen::Transform for speed and fanciness
+  double r = trans.norm();
+  double bearing = atan2(trans.y(), trans.x());
+
+  Eigen::VectorXd vehicle_point(2);
+  vehicle_point << r * cos(bearing - psi),
+                   r * sin(bearing - psi);
+  return vehicle_point;
+}
+
 int main() {
   uWS::Hub h;
 
@@ -92,14 +106,25 @@ int main() {
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
 
+          vector<Eigen::VectorXd> waypoints;
+          Eigen::VectorXd vehicle_pos(2);
+          vehicle_pos << px, py;
+          waypoints.reserve(ptsx.size());
+          for (size_t i = 0; i < ptsx.size(); ++i) {
+            Eigen::VectorXd world_pt(2);
+            world_pt <<  ptsx[i],
+                         ptsy[i];
+            waypoints.push_back(pointToVehicleFrame(world_pt, vehicle_pos, psi));
+          }
+
           /*
           * TODO: Calculate steeering angle and throttle using MPC.
           *
           * Both are in between [-1, 1].
           *
           */
-          double steer_value;
-          double throttle_value;
+          double steer_value = 0;
+          double throttle_value = 0;
 
           json msgJson;
           msgJson["steering_angle"] = steer_value;
@@ -118,6 +143,10 @@ int main() {
           //Display the waypoints/reference line
           vector<double> next_x_vals;
           vector<double> next_y_vals;
+          for (auto const& wp : waypoints) {
+            next_x_vals.push_back(wp.x());
+            next_y_vals.push_back(wp.y());
+          }
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
