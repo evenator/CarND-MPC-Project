@@ -6,23 +6,12 @@
 #include <thread>
 #include <vector>
 #include "Eigen-3.3/Eigen/Core"
-#include "Eigen-3.3/Eigen/QR"
 #include "MPC.h"
+#include "utility.h"
 #include "json.hpp"
 
 // for convenience
 using json = nlohmann::json;
-
-// For converting back and forth between radians and degrees.
-constexpr double pi() {
-  return M_PI;
-}
-double deg2rad(double x) {
-  return x * pi() / 180;
-}
-double rad2deg(double x) {
-  return x * 180 / pi();
-}
 
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
@@ -39,57 +28,6 @@ std::string hasData(std::string s) {
   return "";
 }
 
-// Evaluate a polynomial.
-double polyeval(Eigen::VectorXd coeffs, double x) {
-  double result = 0.0;
-  for (int i = 0; i < coeffs.size(); i++) {
-    result += coeffs[i] * pow(x, i);
-  }
-  return result;
-}
-
-// Fit a polynomial.
-// Adapted from
-// https://github.com/JuliaMath/Polynomials.jl/blob/master/src/Polynomials.jl#L676-L716
-Eigen::VectorXd polyfit(std::vector<Eigen::VectorXd> const& points, int order) {
-  // TODO: Reduce gratuitous copying in this function
-  assert(order >= 1);
-  assert(order <= points.size() - 1);
-  Eigen::MatrixXd A(points.size(), order + 1);
-
-  for (int i = 0; i < points.size(); i++) {
-    A(i, 0) = 1.0;
-  }
-
-  for (int j = 0; j < points.size(); j++) {
-    for (int i = 0; i < order; i++) {
-      A(j, i + 1) = A(j, i) * points[j].x();
-    }
-  }
-
-  Eigen::VectorXd y_vals(points.size());
-  for (size_t i = 0; i < points.size(); ++i) {
-    y_vals(i) = points[i].y();
-  }
-
-  auto Q = A.householderQr();
-  auto result = Q.solve(y_vals);
-  return result;
-}
-
-Eigen::VectorXd pointToVehicleFrame(Eigen::VectorXd const& world_pt,
-                                    Eigen::VectorXd const& vehicle_pos,
-                                    double psi) {
-  Eigen::VectorXd trans = world_pt - vehicle_pos;
-  // TODO: Implement using Eigen::Transform for speed and fanciness
-  double r = trans.norm();
-  double bearing = atan2(trans.y(), trans.x());
-
-  Eigen::VectorXd vehicle_point(2);
-  vehicle_point << r * cos(bearing - psi), r * sin(bearing - psi);
-  return vehicle_point;
-}
-
 json controlFromTelemetry(MPC& mpc, json& telemetry) {
   /// Order of the polynomial to fit to the waypoints
   const int FIT_ORDER = 3;
@@ -99,7 +37,7 @@ json controlFromTelemetry(MPC& mpc, json& telemetry) {
   double px = telemetry["x"];
   double py = telemetry["y"];
   double psi = telemetry["psi"];
-  double v = telemetry["speed"];
+  double v = mphToMps(telemetry["speed"]);
 
   vector<Eigen::VectorXd> waypoints;
   Eigen::VectorXd vehicle_pos(2);
@@ -116,9 +54,10 @@ json controlFromTelemetry(MPC& mpc, json& telemetry) {
   double yaw_err = atan(poly_coeffs[1]);
 
   Eigen::VectorXd state(6);
-  state << px, py, psi, v, cte, yaw_err;
+  state << 0, 0, 0, v, cte, yaw_err;
 
   auto results = mpc.Solve(state, poly_coeffs);
+  std::cout << "Results: " << results[0] << " radians " << results[1] << " m/s^2" << std::endl;
 
   /*
    * TODO: Calculate steeering angle and throttle using MPC.
@@ -126,8 +65,8 @@ json controlFromTelemetry(MPC& mpc, json& telemetry) {
    * Both are in between [-1, 1].
    *
    */
-  double steer_value = 0;
-  double throttle_value = 0;
+  double steer_value = std::max(-1.0, std::min(steeringAngleToRatio(results[0]), 1.0));
+  double throttle_value = std::max(-1.0, std::min(accelToThrottle(results[1]), 1.0));
 
   json msgJson;
   msgJson["steering_angle"] = steer_value;
@@ -136,9 +75,6 @@ json controlFromTelemetry(MPC& mpc, json& telemetry) {
   //Display the MPC predicted trajectory
   vector<double> mpc_x_vals(mpc.N);
   vector<double> mpc_y_vals(mpc.N);
-
-  //TODO: add (x,y) points to list here, points are in reference to the vehicle's coordinate system
-  // the points in the simulator are connected by a Green line
   std::copy(results.begin()+2, results.begin()+2+mpc.N, mpc_x_vals.begin());
   std::copy(results.begin()+2+mpc.N, results.end(), mpc_y_vals.begin());
   
@@ -163,9 +99,11 @@ int main() {
   uWS::Hub h;
 
   // MPC is initialized here!
-  MPC mpc(25, 40);
+  MPC mpc(10, mphToMps(20));
 
-  h.onMessage([&mpc](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  auto last_msg_time = std::chrono::system_clock::now();
+
+  h.onMessage([&mpc, &last_msg_time](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
       uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -178,8 +116,13 @@ int main() {
           auto j = json::parse(s);
           string event = j[0].get<string>();
           if (event == "telemetry") {
+            auto start = std::chrono::system_clock::now();
+            auto time_since_last = start - last_msg_time;
             auto response = controlFromTelemetry(mpc, j[1]);
-
+            auto duration = std::chrono::system_clock::now() - start;
+            last_msg_time = start;
+            std::cout << "Calculation took " <<  chrono::duration <double> (duration).count() << " seconds" << std::endl;
+            std::cout << "Time since last message: " << chrono::duration<double>(time_since_last).count() << " seconds" <<  std::endl;
             auto msg = "42[\"steer\"," + response.dump() + "]";
             std::cout << msg << std::endl;
             // Latency
@@ -191,7 +134,7 @@ int main() {
             //
             // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
             // SUBMITTING.
-            this_thread::sleep_for(chrono::milliseconds(100));
+            this_thread::sleep_for(chrono::milliseconds(0));
             ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
           }
         } else {

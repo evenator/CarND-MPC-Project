@@ -2,26 +2,9 @@
 #include <cppad/cppad.hpp>
 #include <cppad/ipopt/solve.hpp>
 #include "Eigen-3.3/Eigen/Core"
+#include "utility.h"
 
 using CppAD::AD;
-
-// TODO: Set the timestep length and duration
-const size_t N_ACTUATORS = 2;  // Throttle and steering
-const double dt = 0.05;
-const double MAX_STEERING_ANGLE = 0.5;  // Radians
-const double MAX_ACCELERATION = 1.0;  // m/s^2
-
-// This value assumes the model presented in the classroom is used.
-//
-// It was obtained by measuring the radius formed by running the vehicle in the
-// simulator around in a circle with a constant steering angle and velocity on a
-// flat terrain.
-//
-// Lf was tuned until the the radius formed by the simulating the model
-// presented in the classroom matched the previous radius.
-//
-// This is the length from front to CoG that has a similar radius.
-const double Lf = 2.67;
 
 class FG_eval {
  public:
@@ -67,11 +50,12 @@ class FG_eval {
       // Cross-track error
       cost += CppAD::pow(vars[4*N + n], 2);
       // Orientation error
-      cost += CppAD::pow(vars[4*N + n], 2);
+      cost += 5 * CppAD::pow(vars[5*N + n], 2);
       // Velocity error
-      cost += CppAD::pow(vars[3*N + n] - v_des, 2);
+      cost += 5 * CppAD::pow(vars[3*N + n] - v_des, 2);
     }
     // Penalize actuation
+    /*
     for (size_t n = 0; n < N - 1; ++n) {
       // Steering
       cost += CppAD::pow(vars[6*N + n], 2);
@@ -85,6 +69,7 @@ class FG_eval {
       // Throttle
       cost += CppAD::pow(vars[7*N + n] - vars[7*N - 1 + n], 2);
     }
+    */
     fg[0] = cost;
 
     // Initial state constraints
@@ -122,15 +107,15 @@ class FG_eval {
       AD<double> yaw_err_1 = vars[5*N + n + 1];
 
       // The actuations at time t+1
-      AD<double> d_steering = vars[6 * N + n];
+      AD<double> steering = vars[6 * N + n];
       AD<double> accel = vars[7 * N - 1 + n];
 
       // The desired heading at time t
       // Heading is equal to arctangent of the slope
-      // Slope = 1/3 * k_3 * x^2 + 1/2 * k_2 * x + k
+      // Slope = 3 * k_3 * x^2 + 2 * k_2 * x + k_1
       // Where k are the coefficients of the cubic fit
-      AD<double> psi_des = CppAD::atan(coeffs[3]/3 * x_0 * x_0 +
-                                       coeffs[2]/2 * x_0 +
+      AD<double> psi_des = CppAD::atan(coeffs[3]*3 * x_0 * x_0 +
+                                       coeffs[2]*2 * x_0 +
                                        coeffs[1]);
 
       // Kinematic state constraints
@@ -138,15 +123,14 @@ class FG_eval {
       fg[2 + n] = x_1 - (x_0 + v_0 * CppAD::cos(psi_0) * dt);
       // 0 = y' - (y + v * sin(psi) * dt);
       fg[2 + N + n] =  y_1 - (y_0 + v_0 * CppAD::sin(psi_0) * dt);
-      // 0 = psi' - (psi + v * Lf * d_steering * dt)
-      fg[2 + 2*N + n] = psi_1 - (psi_0 + v_0 * Lf * d_steering * dt);
+      // 0 = psi' - (psi - v * Lf * d_steering * dt)
+      fg[2 + 2*N + n] = psi_1 - (psi_0 - v_0 * steering / Lf * dt);
       // 0 = v' - (v + a * dt);
       fg[2 + 3*N + n] = v_1 - (v_0 + accel * dt);
       // 0 = cte' - (f(x) - y + v * sin(yaw_err) * dt)
-      fg[2 + 4*N + n] = cte_1 - (fx_0 - y_0 + v_0 * CppAD::sin(yaw_err_0) * dt);  // Fix this line
-//      fg[2 + 4*N + n] = cte_1 - (x_0 * x_0 * x_0 * coeffs[3] + x_0 * x_0 * coeffs[2] + x_0 * coeffs[1] + coeffs[0] - y_0 + v_0 * CppAD::sin(yaw_err_0) * dt);  // Fix this line
-      // 0 = yaw_err' - (psi - psi_des + v * d_steering / Lf * dt)
-      fg[2 + 5*N + n] = yaw_err_1 - (psi_0 - psi_des + v_0 * d_steering / Lf * dt);
+      fg[2 + 4*N + n] = cte_1 - (fx_0 - y_0 + v_0 * CppAD::sin(yaw_err_0) * dt);
+      // 0 = yaw_err' - (psi - psi_des - v * d_steering / Lf * dt)
+      fg[2 + 5*N + n] = yaw_err_1 - (psi_0 - psi_des - v_0 * steering / Lf * dt);
     }
   }
 };
@@ -163,7 +147,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
 
   // Set the number of model variables (includes both states and inputs).
   const size_t n_vars = state.size() * N + N_ACTUATORS * (N - 1);
-  // TODO: Set the number of constraints
+  // Set the number of constraints
   const size_t n_constraints = state.size() * N;
 
   // Initial value of the independent variables.
@@ -194,8 +178,8 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   }
   // Set steering bounds to +/- MAX_STEERING_ANGLE radians
   for (int n = 0; n < N-1; ++n) {
-    vars_lowerbound[6*N + n] = -MAX_STEERING_ANGLE;
-    vars_upperbound[6*N + n] = MAX_STEERING_ANGLE;
+    vars_lowerbound[6*N + n] = -MAX_STEERING_ANGLE* Lf;
+    vars_upperbound[6*N + n] = MAX_STEERING_ANGLE * Lf;
   }
   // Set throttle bounds to +/- MAX_ACCELERATION
   for (int n = 0; n < N-1; ++n) {
@@ -225,12 +209,12 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   //
   // options for IPOPT solver
   std::string options;
-  // Uncomment this if you'd like more print information
-  options += "Integer print_level  0\n";
+  // Comment this if you'd like more print information
+  // options += "Integer print_level  0\n";
   // NOTE: Setting sparse to true allows the solver to take advantage
   // of sparse routines, this makes the computation MUCH FASTER. If you
-  // can uncomment 1 of these and see if it makes a difference or not but
-  // if you uncomment both the computation time should go up in orders of
+  // can comment 1 of these and see if it makes a difference or not but
+  // if you comment both the computation time should go up in orders of
   // magnitude.
   options += "Sparse  true        forward\n";
   options += "Sparse  true        reverse\n";
@@ -252,12 +236,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // Cost
   auto cost = solution.obj_value;
   std::cout << "Cost " << cost << std::endl;
-
-  // TODO: Return the first actuator values. The variables can be accessed with
-  // `solution.x[i]`.
-  //
-  // {...} is shorthand for creating a vector, so auto x1 = {1.0,2.0}
-  // creates a 2 element double vector.
+  
   // Return first steering, first throttle, then full x sequence, full y sequence
   std::vector<double> results;
   results.push_back(solution.x[6*N]);
