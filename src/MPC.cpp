@@ -50,7 +50,7 @@ class FG_eval {
       // Cross-track error
       cost += CppAD::pow(vars[4*N + n], 2);
       // Orientation error
-      cost += 5 * CppAD::pow(vars[5*N + n], 2);
+      cost += 10 * CppAD::pow(vars[5*N + n], 2);
       // Velocity error
       cost += 5 * CppAD::pow(vars[3*N + n] - v_des, 2);
     }
