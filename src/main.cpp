@@ -99,7 +99,7 @@ int main() {
   uWS::Hub h;
 
   // MPC is initialized here!
-  MPC mpc(10, mphToMps(20));
+  MPC mpc(10, mphToMps(40));
 
   auto last_msg_time = std::chrono::system_clock::now();
 
