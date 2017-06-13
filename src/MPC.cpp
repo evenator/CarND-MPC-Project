@@ -50,19 +50,20 @@ class FG_eval {
       // Cross-track error
       cost += CppAD::pow(vars[4*N + n], 2);
       // Orientation error
-      cost += 10 * CppAD::pow(vars[5*N + n], 2);
+      cost += 100 * CppAD::pow(vars[5*N + n], 2);
       // Velocity error
       cost += 5 * CppAD::pow(vars[3*N + n] - v_des, 2);
     }
     // Penalize actuation
-    /*
+
     for (size_t n = 0; n < N - 1; ++n) {
       // Steering
-      cost += CppAD::pow(vars[6*N + n], 2);
+      //cost += 5 * CppAD::pow(vars[6*N + n], 2);
       // Throttle
-      cost += CppAD::pow(vars[7*N - 1 + n], 2);
+      //cost += CppAD::pow(vars[7*N - 1 + n], 2);
     }
     // Penalize rapid change in actuation
+    /*
     for (size_t n = 0; n < N - 2; ++n) {
       // Steering
       cost += CppAD::pow(vars[6*N +n + 1] - vars[6*N +n], 2);
@@ -130,7 +131,7 @@ class FG_eval {
       // 0 = cte' - (f(x) - y + v * sin(yaw_err) * dt)
       fg[2 + 4*N + n] = cte_1 - (fx_0 - y_0 + v_0 * CppAD::sin(yaw_err_0) * dt);
       // 0 = yaw_err' - (psi - psi_des - v * d_steering / Lf * dt)
-      fg[2 + 5*N + n] = yaw_err_1 - (psi_0 - psi_des - v_0 * steering / Lf * dt);
+      fg[2 + 5*N + n] = yaw_err_1 - (psi_1 - psi_des);
     }
   }
 };
