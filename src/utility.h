@@ -77,6 +77,10 @@ inline double steeringAngleToRatio(double steering_angle) {
   return rad2deg(steering_angle)/(25.0 * Lf);
 }
 
+inline double steeringRatioToAngle(double steering_ratio) {
+  return deg2rad(steering_ratio * 25.0 * Lf);
+}
+
 inline double mphToMps(double speed_mph) {
   return speed_mph * 0.44704;
 }
@@ -88,6 +92,11 @@ inline double mpsToMph(double speed_mps) {
 inline double accelToThrottle(double accel_mpss) {
   if (accel_mpss > 0)  return accel_mpss / 3.3;  // Approximate
   else return accel_mpss / 6.7;  // Approximate
+}
+
+inline double throttleToAccel(double throttle) {
+  if (throttle > 0)  return throttle * 3.3;  // Approximate
+  else return throttle * 6.7;  // Approximate
 }
 
 static Eigen::VectorXd pointToVehicleFrame(Eigen::VectorXd const& world_pt,

@@ -38,6 +38,8 @@ json controlFromTelemetry(MPC& mpc, json& telemetry) {
   double py = telemetry["y"];
   double psi = telemetry["psi"];
   double v = mphToMps(telemetry["speed"]);
+  double steering_angle = steeringRatioToAngle(telemetry["steering_angle"]);
+  double accel = throttleToAccel(telemetry["throttle"]);
 
   vector<Eigen::VectorXd> waypoints;
   Eigen::VectorXd vehicle_pos(2);
@@ -53,18 +55,14 @@ json controlFromTelemetry(MPC& mpc, json& telemetry) {
   double cte = poly_coeffs[0];
   double yaw_err = atan(poly_coeffs[1]);
 
-  Eigen::VectorXd state(6);
-  state << 0, 0, 0, v, cte, yaw_err;
+  Eigen::VectorXd state(8);
+  state << 0, 0, 0, v, cte, yaw_err, accel, steering_angle;
 
   auto results = mpc.Solve(state, poly_coeffs);
   std::cout << "Results: " << results[0] << " radians " << results[1] << " m/s^2" << std::endl;
 
-  /*
-   * TODO: Calculate steeering angle and throttle using MPC.
-   *
-   * Both are in between [-1, 1].
-   *
-   */
+  // Calculate steeering angle and throttle using MPC.
+  // Coerce to between [-1, 1].
   double steer_value = std::max(-1.0, std::min(steeringAngleToRatio(results[0]), 1.0));
   double throttle_value = std::max(-1.0, std::min(accelToThrottle(results[1]), 1.0));
 
@@ -73,15 +71,17 @@ json controlFromTelemetry(MPC& mpc, json& telemetry) {
   msgJson["throttle"] = throttle_value;
 
   //Display the MPC predicted trajectory
-  vector<double> mpc_x_vals(mpc.N);
-  vector<double> mpc_y_vals(mpc.N);
-  std::copy(results.begin()+2, results.begin()+2+mpc.N, mpc_x_vals.begin());
-  std::copy(results.begin()+2+mpc.N, results.end(), mpc_y_vals.begin());
+  size_t n_points = (results.size() - 2)/2;
+  vector<double> mpc_x_vals(n_points);
+  vector<double> mpc_y_vals(n_points);
+  std::copy(results.begin()+2, results.begin()+2+n_points, mpc_x_vals.begin());
+  std::copy(results.begin()+2+n_points, results.end(), mpc_y_vals.begin());
   
   msgJson["mpc_x"] = mpc_x_vals;
   msgJson["mpc_y"] = mpc_y_vals;
 
-  //Display the waypoints/reference line
+  // Display the waypoints/reference line
+  // TODO: Account for delay
   vector<double> next_x_vals;
   vector<double> next_y_vals;
   for (auto const& wp : waypoints) {
@@ -99,7 +99,7 @@ int main() {
   uWS::Hub h;
 
   // MPC is initialized here!
-  MPC mpc(10, mphToMps(40));
+  MPC mpc(10, mphToMps(40), 1);
 
   auto last_msg_time = std::chrono::system_clock::now();
 
@@ -134,7 +134,7 @@ int main() {
             //
             // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
             // SUBMITTING.
-            this_thread::sleep_for(chrono::milliseconds(0));
+            this_thread::sleep_for(chrono::milliseconds(100));
             ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
           }
         } else {

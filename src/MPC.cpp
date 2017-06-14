@@ -139,7 +139,7 @@ class FG_eval {
 //
 // MPC class definition implementation.
 //
-MPC::MPC(size_t n, double v): N(n), velocity(v) {}
+MPC::MPC(size_t n, double v, size_t delay_steps): N(n), velocity(v), delay(delay_steps) {}
 MPC::~MPC() {}
 
 vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
@@ -177,13 +177,25 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
     vars_lowerbound[3*N + n] = 0;
     vars_upperbound[3*N + n] = 100;
   }
+
+  // Constrain Steering During Acuation Delay
+  for (size_t n = 0; n < delay; ++n) {
+    vars_lowerbound[6*N + n] = -state[7];
+    vars_upperbound[6*N + n] = -state[7];
+  }
+  // Constrain throttle during actuation delay
+  for (size_t n = 0; n < delay; ++n) {
+    vars_lowerbound[7*N - 1 + n] = state[6];
+    vars_upperbound[7*N - 1 + n] = state[6];
+  }
+
   // Set steering bounds to +/- MAX_STEERING_ANGLE radians
-  for (int n = 0; n < N-1; ++n) {
-    vars_lowerbound[6*N + n] = -MAX_STEERING_ANGLE* Lf;
-    vars_upperbound[6*N + n] = MAX_STEERING_ANGLE * Lf;
+  for (int n = delay; n < N-1; ++n) {
+    vars_lowerbound[6*N + n] = -MAX_STEERING_ANGLE;
+    vars_upperbound[6*N + n] = MAX_STEERING_ANGLE;
   }
   // Set throttle bounds to +/- MAX_ACCELERATION
-  for (int n = 0; n < N-1; ++n) {
+  for (int n = delay; n < N-1; ++n) {
     vars_lowerbound[7*N - 1 + n] = -MAX_ACCELERATION;
     vars_upperbound[7*N - 1 + n] = MAX_ACCELERATION;
   }
@@ -240,9 +252,12 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   
   // Return first steering, first throttle, then full x sequence, full y sequence
   std::vector<double> results;
-  results.push_back(solution.x[6*N]);
-  results.push_back(solution.x[7*N-1]);
-  for (size_t i = 0; i < 2*N; ++i) {
+  results.push_back(solution.x[6*N+delay]);  // Steering
+  results.push_back(solution.x[7*N-1+delay]);  // Throttle
+  for (size_t i = delay; i < N; ++i) {
+    results.push_back(solution.x[i]);
+  }
+  for (size_t i = N+delay; i < 2*N; ++i) {
     results.push_back(solution.x[i]);
   }
   return results;
