@@ -48,9 +48,9 @@ class FG_eval {
     // Penalize error
     for (size_t n = 0; n < N; ++n) {
       // Cross-track error
-      cost += CppAD::pow(vars[4*N + n], 2);
+      cost += 1.2 * CppAD::pow(vars[4*N + n], 2);
       // Orientation error
-      cost += 100 * CppAD::pow(vars[5*N + n], 2);
+      cost += 120 * CppAD::pow(vars[5*N + n], 2);
       // Velocity error
       cost += 5 * CppAD::pow(vars[3*N + n] - v_des, 2);
     }
@@ -63,14 +63,12 @@ class FG_eval {
       //cost += CppAD::pow(vars[7*N - 1 + n], 2);
     }
     // Penalize rapid change in actuation
-    /*
     for (size_t n = 0; n < N - 2; ++n) {
       // Steering
-      cost += CppAD::pow(vars[6*N +n + 1] - vars[6*N +n], 2);
+      //cost += 2 * CppAD::pow(vars[6*N+n+1] - vars[6*N+n], 2);
       // Throttle
       cost += CppAD::pow(vars[7*N + n] - vars[7*N - 1 + n], 2);
     }
-    */
     fg[0] = cost;
 
     // Initial state constraints
@@ -113,11 +111,15 @@ class FG_eval {
 
       // The desired heading at time t
       // Heading is equal to arctangent of the slope
-      // Slope = 3 * k_3 * x^2 + 2 * k_2 * x + k_1
-      // Where k are the coefficients of the cubic fit
-      AD<double> psi_des = CppAD::atan(coeffs[3]*3 * x_0 * x_0 +
-                                       coeffs[2]*2 * x_0 +
-                                       coeffs[1]);
+      AD<double> slope = 0;
+      for (size_t i = 1; i < coeffs.size(); ++i) {
+        AD<double> x_pow = 1;
+        for (size_t j = 1; j < i; ++j) {
+          x_pow *= x_0;
+        }
+        slope += i * coeffs[i] * x_pow;
+      }
+      AD<double> psi_des = CppAD::atan(slope);
 
       // Kinematic state constraints
       // 0 = x' - (x + v * cos(psi) * dt);
@@ -180,8 +182,8 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
 
   // Constrain Steering During Acuation Delay
   for (size_t n = 0; n < delay; ++n) {
-    vars_lowerbound[6*N + n] = -state[7];
-    vars_upperbound[6*N + n] = -state[7];
+    vars_lowerbound[6*N + n] = state[7];
+    vars_upperbound[6*N + n] = state[7];
   }
   // Constrain throttle during actuation delay
   for (size_t n = 0; n < delay; ++n) {

@@ -30,7 +30,7 @@ std::string hasData(std::string s) {
 
 json controlFromTelemetry(MPC& mpc, json& telemetry) {
   /// Order of the polynomial to fit to the waypoints
-  const int FIT_ORDER = 3;
+  const int FIT_ORDER = 2;
 
   vector<double> ptsx = telemetry["ptsx"];
   vector<double> ptsy = telemetry["ptsy"];
@@ -49,6 +49,10 @@ json controlFromTelemetry(MPC& mpc, json& telemetry) {
     Eigen::VectorXd world_pt(2);
     world_pt << ptsx[i], ptsy[i];
     waypoints.push_back(pointToVehicleFrame(world_pt, vehicle_pos, psi));
+    if (i < ptsx.size()/2) {
+      waypoints.push_back(pointToVehicleFrame(world_pt, vehicle_pos, psi));
+      waypoints.push_back(pointToVehicleFrame(world_pt, vehicle_pos, psi));
+    }
   }
 
   Eigen::VectorXd poly_coeffs = polyfit(waypoints, FIT_ORDER);
@@ -82,12 +86,14 @@ json controlFromTelemetry(MPC& mpc, json& telemetry) {
 
   // Display the waypoints/reference line
   // TODO: Account for delay
-  vector<double> next_x_vals;
+  vector<double> next_x_vals(n_points);
+  std::copy(mpc_x_vals.begin(), mpc_x_vals.end(), next_x_vals.begin());
   vector<double> next_y_vals;
-  for (auto const& wp : waypoints) {
-    next_x_vals.push_back(wp.x());
-    next_y_vals.push_back(wp.y());
+  for (auto const& x : next_x_vals) {
+    std::cout << x << " ";
+    next_y_vals.push_back(polyeval(poly_coeffs, x));
   }
+  std::cout << std::endl;
 
   msgJson["next_x"] = next_x_vals;
   msgJson["next_y"] = next_y_vals;
