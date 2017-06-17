@@ -30,17 +30,7 @@ throttle and steering commands. I estimated a scale factor to convert brake and 
 acceleration, and I used the known steering limits (±25°) to convert steering commands to steering
 angles.
 
-![x' = x + v * cos(\psi) * dt
-
-y' = y + v * sin(\psi) * dt
-
-\psi' = \psi - v * L_f * steer * dt
-
-v' = v + a * dt
-
-err_{ct}' = f(x) - y'
-
-err_{\psi}' = \psi - \psi'](kinematics.png "Kinematic Equations")
+![kinematic equations](kinematics.png "Kinematic Equations")
 
 The model itself (above) is a kinematic model of the car, based on the model described in the
 lessons. `Ψ` is heading, `L_f` is the length parameter of the car, and `steer` is the steering
