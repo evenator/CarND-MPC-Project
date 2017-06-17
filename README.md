@@ -10,7 +10,7 @@ About This Project
 
 The assignment for this project was to control a simulated car around a simulated track using
 Model Predictive Control. The path around the track is provided as a set of sparse waypoints by
-the simulator.
+the simulator. I chose 40 MPH as the objective speed to go around the track.
 
 Preprocessing
 -------------
@@ -38,7 +38,31 @@ angle, which is used to calculate the steering command. `a` is the acceleration,
 calculate the throttle/brake command. `err_ct` is the cross-track error, and `f(x)` is the y
 position of the path, as calculated by with the polyonomial fit. `err_Ψ` is the heading error.
 
-*TODO: Student discusses the reasoning behind the chosen N (timestep length) and dt (elapsed duration between timesteps) values. Additionally the student details the previous values tried.*
+In order to choose a good number of timesteps `N` and timestep length `dt` for prediction, I first
+tuned the cost function so that the car could go around the track at 40 MPH with `N=10` and
+`dt=0.10`. Then, I tried many different combinations of `N` and `dt`:
+
+N  |  dt   | Result
+----------------------------------------------------------------------------------
+20 | 0.100 | Wildly unstable; leaves track on straightaway
+15 | 0.100 | Quickly leaves the track
+12 | 0.100 | Completes bridge, first turn, leaves track at second turn
+11 | 0.100 | Completes almost full lap, leaves track near start
+10 | 0.100 | Loops indefinitely without leaving the track
+ 9 | 0.100 | Loops indefinitely without leaving the track
+ 8 | 0.100 | Nearly leaves track into dirt at first turn
+10 | 0.050 | Leaves track at first turn
+15 | 0.050 | Loops indefinitely without leaving the track; worse than 10x0.10
+20 | 0.050 | Loops indefinitely without leaving the track
+25 | 0.050 | Unstable weaving; leaves track before bridge
+20 | 0.025 | Very jerky; leaves track at second turn
+25 | 0.025 | Very jerky, but completes track
+30 | 0.025 | Very jerky; hops onto curb in second turn; leaves track later in lap
+
+Based on these results, I chose to use `N=20` and `dt=0.050`. I found that with shorter `dt`, more
+timesteps were needed for good performance, but as `N` exceeded 20, the computation time for the
+optimization got too long (approaching 100 ms), which causes jerky control and instability due to
+the added delay.
 
 Handling Latency
 ----------------
