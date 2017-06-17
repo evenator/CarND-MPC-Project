@@ -36,9 +36,9 @@ The model itself (above) is a kinematic model of the car, based on the model des
 lessons. `Ψ` is heading, `L_f` is the length parameter of the car, and `steer` is the steering
 angle, which is used to calculate the steering command. `a` is the acceleration, which is used to
 calculate the throttle/brake command. `err_ct` is the cross-track error, and `f(x)` is the y
-position of the path, as calculated by with the polyonomial fit. `err_Ψ` is the heading error.
+position of the path, as calculated by with the polynomial fit. `err_Ψ` is the heading error.
 
-In order to choose a good number of timesteps `N` and timestep length `dt` for prediction, I first
+In order to choose a good number of time steps `N` and time step length `dt` for prediction, I first
 tuned the cost function so that the car could go around the track at 40 MPH with `N=10` and
 `dt=0.10`. Then, I tried many different combinations of `N` and `dt`:
 
@@ -60,7 +60,7 @@ N  |  dt   | Result
 30 | 0.025 | Very jerky; hops onto curb in second turn; leaves track later in lap
 
 Based on these results, I chose to use `N=20` and `dt=0.050`. I found that with shorter `dt`, more
-timesteps were needed for good performance, but as `N` exceeded 20, the computation time for the
+time steps were needed for good performance, but as `N` exceeded 20, the computation time for the
 optimization got too long (approaching 100 ms), which causes jerky control and instability due to
 the added delay.
 
@@ -90,7 +90,7 @@ Building and Running
 
 ### Basic Build Instructions
 
-1. Clone this repo.
+1. Clone this repository.
 2. Make a build directory: `mkdir build && cd build`
 3. Compile: `cmake .. && make`
 4. Run it: `./mpc`.
