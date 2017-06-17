@@ -85,7 +85,6 @@ json controlFromTelemetry(MPC& mpc, json& telemetry) {
   msgJson["mpc_y"] = mpc_y_vals;
 
   // Display the waypoints/reference line
-  // TODO: Account for delay
   vector<double> next_x_vals(n_points);
   std::copy(mpc_x_vals.begin(), mpc_x_vals.end(), next_x_vals.begin());
   vector<double> next_y_vals;
@@ -105,7 +104,7 @@ int main() {
   uWS::Hub h;
 
   // MPC is initialized here!
-  MPC mpc(10, mphToMps(40), 1);
+  MPC mpc(20, 0.05, mphToMps(40), 2);
 
   auto last_msg_time = std::chrono::system_clock::now();
 

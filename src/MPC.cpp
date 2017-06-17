@@ -14,11 +14,14 @@ class FG_eval {
   double v_des;
   /// Number of states to predict
   size_t N;
+  /// Timestep
+  double dt;
 
-  FG_eval(Eigen::VectorXd coeffs, double velocity, size_t n) {
+  FG_eval(Eigen::VectorXd coeffs, double velocity, size_t n, double dt) {
     this->coeffs = coeffs;
     this->v_des = velocity;
     this->N = n;
+    this->dt = dt;
   }
 
   /*
@@ -65,7 +68,7 @@ class FG_eval {
     // Penalize rapid change in actuation
     for (size_t n = 0; n < N - 2; ++n) {
       // Steering
-      //cost += 2 * CppAD::pow(vars[6*N+n+1] - vars[6*N+n], 2);
+      cost += 0.05 * CppAD::pow(vars[6*N+n+1] - vars[6*N+n], 2);
       // Throttle
       cost += CppAD::pow(vars[7*N + n] - vars[7*N - 1 + n], 2);
     }
@@ -138,10 +141,16 @@ class FG_eval {
   }
 };
 
-//
-// MPC class definition implementation.
-//
-MPC::MPC(size_t n, double v, size_t delay_steps): N(n), velocity(v), delay(delay_steps) {}
+MPC::MPC(
+  size_t n,
+  double time_step,
+  double v,
+  size_t delay_steps):
+    N(n),
+    dt(time_step),
+    velocity(v),
+    delay(delay_steps) {}
+
 MPC::~MPC() {}
 
 vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
@@ -217,7 +226,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   }
 
   // object that computes objective and constraints
-  FG_eval fg_eval(coeffs, velocity, N);
+  FG_eval fg_eval(coeffs, velocity, N, dt);
 
   //
   // NOTE: You don't have to worry about these options
@@ -225,7 +234,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // options for IPOPT solver
   std::string options;
   // Comment this if you'd like more print information
-  // options += "Integer print_level  0\n";
+  options += "Integer print_level  0\n";
   // NOTE: Setting sparse to true allows the solver to take advantage
   // of sparse routines, this makes the computation MUCH FASTER. If you
   // can comment 1 of these and see if it makes a difference or not but

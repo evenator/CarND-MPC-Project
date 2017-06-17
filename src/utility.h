@@ -6,7 +6,6 @@
 
 // TODO: Set the timestep length and duration
 const size_t N_ACTUATORS = 2;  // Throttle and steering
-const double dt = 0.1;
 const double MAX_STEERING_ANGLE = 0.436332313;  // Radians
 const double MAX_ACCELERATION = 3.0;  // m/s^2
 
