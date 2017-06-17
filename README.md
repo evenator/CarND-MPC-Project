@@ -43,7 +43,7 @@ tuned the cost function so that the car could go around the track at 40 MPH with
 `dt=0.10`. Then, I tried many different combinations of `N` and `dt`:
 
 N  |  dt   | Result
-----------------------------------------------------------------------------------
+-- | ----- | ----------------------------------------------------------------------
 20 | 0.100 | Wildly unstable; leaves track on straightaway
 15 | 0.100 | Quickly leaves the track
 12 | 0.100 | Completes bridge, first turn, leaves track at second turn
